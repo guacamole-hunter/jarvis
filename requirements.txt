@@ -1,2 +1,4 @@
 asyncio
 openai
+pdfplumber
+pytesseract
