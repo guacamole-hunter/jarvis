@@ -6,7 +6,8 @@ import difflib
 import re
 
 # Replace 'your_api_key' with your OpenAI API key
-openai.api_key = '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'
+
+openai.api_key = 'your_api_key'
 
 class Jarvis:
     def __init__(self, database_path):
