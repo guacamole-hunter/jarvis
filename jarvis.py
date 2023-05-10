@@ -6,6 +6,7 @@ import difflib
 import re
 
 # Replace 'your_api_key' with your OpenAI API key
+
 openai.api_key = 'your_api_key'
 
 class Jarvis:
