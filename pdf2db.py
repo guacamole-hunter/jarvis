@@ -2,13 +2,22 @@ import os
 import re
 import sqlite3
 import pdfplumber
+import pytesseract
 import asyncio
 from glob import glob
 
 async def pdf_to_text(file_path):
     try:
         with pdfplumber.open(file_path) as pdf:
-            pages = [page.extract_text() for page in pdf.pages]
+            pages = []
+            for page in pdf.pages:
+                if page.images:
+                    # If the page has images, use OCR to extract text
+                    im = page.to_image(resolution=300)
+                    text = pytesseract.image_to_string(im.image)
+                else:
+                    text = page.extract_text()
+                pages.append(text)
             return "\n".join(pages)
     except Exception as e:
         print(f"Error processing {file_path}: {e}")
@@ -16,34 +25,31 @@ async def pdf_to_text(file_path):
 
 def create_connect_db():
     conn = sqlite3.connect("service_manuals.db")
-    conn.execute("CREATE TABLE IF NOT EXISTS service_manuals (make TEXT, model TEXT, manual_type TEXT, content TEXT, PRIMARY KEY(make, model, manual_type))")
+    conn.execute("CREATE TABLE IF NOT EXISTS service_manuals (manufacturer TEXT, model TEXT, manual_type TEXT, content TEXT, PRIMARY KEY(manufacturer, model, manual_type))")
     return conn
 
-def is_duplicate(conn, make, model):
+def is_duplicate(conn, manufacturer, model):
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM service_manuals WHERE make=? AND model=?", (make, model))
+    cursor.execute("SELECT * FROM service_manuals WHERE manufacturer=? AND model=?", (manufacturer, model))
     return bool(cursor.fetchone())
 
-def store_data(conn, make, model, manual_type, content):
+def store_data(conn, manufacturer, model, manual_type, content):
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO service_manuals (make, model, manual_type, content) VALUES (?, ?, ?, ?)", (make, model, manual_type, content))
+    cursor.execute("INSERT OR REPLACE INTO service_manuals (manufacturer, model, manual_type, content) VALUES (?, ?, ?, ?)", (manufacturer, model, manual_type, content))
     conn.commit()
 
-def extract_model_manual_type(text):
-    model_manual_patterns = [
-        r"(?i)Model:\s*(\w+)\s*Type:\s*(\w+)",
-        r"(?i)Model:\s*(\w+)[\s\S]*?Type:\s*(\w+)",
-        r"(?i)Model\s+(\w+)[\s\S]*?Type\s+(\w+)"
+def is_model_number_valid(model):
+    model_number_patterns = [
+        r"^[a-zA-Z0-9-_]+$",
+        r"^[a-zA-Z]+[\d]+[a-zA-Z]*$",
+        r"^[a-zA-Z]+[-\s]?[\d]+[a-zA-Z]*[-\s]?[\d]*$",
+        r"^[\d]+[a-zA-Z]+[-\s]?[\d]*$"
     ]
 
-    for pattern in model_manual_patterns:
-        match = re.search(pattern, text)
-        if match:
-            model = match.group(1)
-            manual_type = match.group(2)
-            return model, manual_type
-
-    return None, None
+    for pattern in model_number_patterns:
+        if re.match(pattern, model):
+            return True
+    return False
 
 async def main():
     conn = create_connect_db()
@@ -59,21 +65,20 @@ async def main():
             continue
 
         print("Extracted text from PDF.")
-        make = os.path.basename(os.path.dirname(pdf_file))
+        manufacturer = os.path.basename(os.path.dirname(pdf_file))
         model = os.path.splitext(os.path.basename(pdf_file))[0]
-        _, manual_type = extract_model_manual_type(text)
 
-        if make and model and manual_type:
-            print(f"Make: {make}, Model: {model}, Type: {manual_type}")
+        if is_model_number_valid(model):
+            print(f"Manufacturer: {manufacturer}, Model: {model}")
 
-            if is_duplicate(conn, make, model):
+            if is_duplicate(conn, manufacturer, model):
                 print("Duplicate entry found. Skipping.")
                 continue
 
-            store_data(conn, make, model, manual_type, text)
+            store_data(conn, manufacturer, model, 'Service Manual', text)
             print("Stored data in the database.")
         else:
-            print("Manual type not found.")
+            print("Model number not valid.")
 
     conn.close()
 
