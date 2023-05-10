@@ -34,7 +34,7 @@ async def pdf_to_text(file_path):
 
                 if text is None:
                     # If text extraction fails, convert the page to an image and use OCR
-                    images = convert_from_path(file_path, dpi=300)
+                    images = convert_from_path(file_path, dpi=1000)
                     current_page_number = page.page_number
                     image = images[current_page_number - 1]
 
