@@ -8,7 +8,7 @@ install deps with
 `pip install -r requirements.txt`
 
 (You may need to install https://github.com/tesseract-ocr/tesseract,
-https://github.com/RedisAI/RedisAI)
+https://github.com/RedisAI/RedisAI if you plan on using pdf2db script)
 
 you can run it with 
 `python -m jarvis`
